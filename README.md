@@ -87,10 +87,16 @@ Follow the [link](https://api.slack.com/bot-users) for more details about bot us
     ```go
     func AppWeatherMentionHandler(w http.ResponseWriter, r *http.Request) {
     	// get the request body
-    	defer r.Body.Close()
+    	defer func() {
+        		_ = r.Body.Close()
+        	}()
     	body, _ := ioutil.ReadAll(r.Body)
      	m := make(map[string]interface{})
-    	json.Unmarshal(body, &m)
+    	err := json.Unmarshal(body, &m)
+        	if err != nil {
+        		_, _ = fmt.Fprintf(w, "error unmarshalling body: %v", err)
+        		return
+        	}
     	fmt.Fprintf(w, "%s", m["challenge"])
      }
     ```
@@ -145,7 +151,11 @@ Follow the [link](https://api.slack.com/bot-users) for more details about bot us
      ```shell script
          body, _ := ioutil.ReadAll(r.Body)
          m := make(map[string]interface{})
-         json.Unmarshal(body, &m)         
+         err := json.Unmarshal(body, &m)
+         	if err != nil {
+         		_, _ = fmt.Fprintf(w, "error unmarshalling body: %v", err)
+         		return
+         	}      
          m1 := m["event"].(map[string]interface{})
          text := fmt.Sprintf("%v", m1["text"])
          str := strings.Split(text, "<bot user ID>")
@@ -157,11 +167,11 @@ Follow the [link](https://api.slack.com/bot-users) for more details about bot us
    ``` 
     There are many weather web pages provide API that we can choose from. I am using [openweathermap.org
     API](https://openweathermap.org/api) to get all the free current weather information for my app. 
-          This web page requires an `appID`, and all you need to do to get one is signing up an account on this website.
-          You can check current weather API documentation [here](https://openweathermap.org/current). 
-          As shown in the documentation, to search for current weather of a city by
-           its name, and obtained values are displayed in cubic metric, the syntax for that URL 
-           should be as follows.
+    This web page requires an `appID`, and all you need to do to get one is signing up an account on this website.
+    You can check current weather API documentation [here](https://openweathermap.org/current). 
+    As shown in the documentation, to search for current weather of a city by
+    its name, and obtained values are displayed in cubic metric, the syntax for that URL 
+    should be as follows.
     ```shell script
          http://api.openweathermap.org/data/2.5/weather?q=<city_name>&units=metric&APPID=<appID>
     ```       

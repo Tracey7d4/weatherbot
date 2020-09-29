@@ -22,7 +22,8 @@ func AppWeatherMentionHandler(w http.ResponseWriter, r *http.Request) {
 	m := make(map[string]interface{})
 	err := json.Unmarshal(body, &m)
 	if err != nil {
-		_, _ = fmt.Fprintf(w, "error: %v", err)
+		_, _ = fmt.Fprintf(w, "error unmarshalling body: %v", err)
+		return
 	}
 
 	// if it's the first them this server is registered with slack,
@@ -46,12 +47,14 @@ func AppWeatherMentionHandler(w http.ResponseWriter, r *http.Request) {
 	weather, err := getWeather(symbol)
 	if err != nil {
 		_, _ = fmt.Fprintf(w, "error calling openweather API: %v", err)
+		return
 	}
 
 	// send the weather to slack channel
 	err = sendMessage(token, channel, weather)
 	if err != nil {
 		_, _ = fmt.Fprintf(w, "error sending message to Slack: %v", err)
+		return
 	}
 }
 
@@ -74,7 +77,7 @@ func getWeather(sym string) (string, error) {
 		return "", err
 	}
 
-	defer func(){
+	defer func() {
 		_ = resp.Body.Close()
 	}()
 
