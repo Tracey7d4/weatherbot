@@ -36,7 +36,7 @@ func AppWeatherMentionHandler(w http.ResponseWriter, r *http.Request) {
 	// get the text field
 	text := fmt.Sprintf("%v", m1["text"])
 	str := strings.Split(text, "<bot user ID>")
-	symbol := strings.Trim(str[1], " ")
+	city := strings.Trim(str[1], " ")
 
 	// get the channel id
 	channel := fmt.Sprintf("%v", m1["channel"])
@@ -44,7 +44,7 @@ func AppWeatherMentionHandler(w http.ResponseWriter, r *http.Request) {
 	token := "User's Slack Bot Token"
 
 	// get current weather
-	weather, err := getWeather(symbol)
+	weather, err := getWeather(city)
 	if err != nil {
 		_, _ = fmt.Fprintf(w, "error calling openweather API: %v", err)
 		return
