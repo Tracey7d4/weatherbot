@@ -31,16 +31,14 @@ func AppWeatherMentionHandler(w http.ResponseWriter, r *http.Request) {
 	//fmt.Fprintf(w, "%s", m["challenge"])
 
 	// extract the event field into another map
-	m1 := m["event"].(map[string]interface{})
+	nm := m["event"].(map[string]interface{})
 
 	// get the text field
-	text := fmt.Sprintf("%v", m1["text"])
+	text := fmt.Sprintf("%v", nm["text"])
 	str := strings.Split(text, "<bot user ID>")
 	city := strings.Trim(str[1], " ")
-
 	// get the channel id
-	channel := fmt.Sprintf("%v", m1["channel"])
-
+	channel := fmt.Sprintf("%v", nm["channel"])
 	token := "User's Slack Bot Token"
 
 	// get current weather
