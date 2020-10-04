@@ -1,52 +1,42 @@
 # Simple Slack bot in Go using event API
 
-The idea of writing a Slack bot in Go was first seen at [Rapid loop slackbot for RTM API](https://github.com/rapidloop/mybot).
-However, after doing some research, I found that Slack platform provides a
-[range of API](https://api.slack.com/apis) that Slack apps can access to, not only RTM API, but also events
- API, web API, Audit Logs APIs, and more. For the purpose of designing a simple app that responds to 
- activities in Slack, [events API](https://api.slack.com/events-api) may be a good choice to start with. 
-
-### Description
-
-As mentioned before, we're going to create some Slack Bots that will response to our requests when
-their names are mentioned. Particularly, I have written two Slack bots -
- `weatherbot` that returns current weather condition of a given city in the world, 
- and `stockbot` that returns stock value of a given company. I'm going to show you my way to write `weatherbot` 
- in this repository. And `stockbot` is given in [Stockbot repository](https://github.com/Tracey7d4/stockbot), thus it's easier to follow.
-
 ![weatherBot image](docs/image/weatherbot.png)
 
+In this repository, I'm going to create a `weatherbot` for querying weather condition of a given location. The idea of writing a Slack bot in Go was inspired by [rapidloop's slackbot for RTM API](https://github.com/rapidloop/mybot).
+At the moment, Slack platform provides a [range of APIs](https://api.slack.com/apis) that Slack apps can access to including events API, web API, Audit Logs APIs beside RTM API which was used in rapidloop's implementation. As RTM API is being phased out in favour of events API, in this application, [events API](https://api.slack.com/events-api) will be used.
 
-We just need to do some steps to get there.
+### Architecture
+The architecture of the application can be seen in the diagram below.
 
-0. Build a Slack Bot User that subscribed to `app_mention` event
+ ![diagram](docs/image/newDiagram.png)
 
-0. Create a Project on Google Cloud Platform (GCP). 
-This step is required for deploying cloud function. Therefore that's the main purpose of it
+When a bot is mentioned in Slack App, an event is created on Slack Event API. That event will trigger a call out to a cloud function.The cloud function was written in Go and hosted on [Google Cloud Platform (GCP)](). The function gets the location from the request, calls out to a third-party API, which is [openweathermap]() in this case, to get the weather information. The function then formats the final message with that information before sending it back to Slack API to display in Slack App. 
 
-0. Write a Go function with its endpoint managed and routed by Cloud Functions. 
-The purpose of the go function is to respond to an event triggered by Slack bot
+Creating such bot required the following steps
 
-    ![diagram](docs/image/diagram.png)
+0. Build a Slack Bot User that subscribes to `app_mention` event
 
-### Implementing
+0. Create a project on GCP to deploy the cloud function.
+
+0. Create a Go function which is a HTTP handler that responds to events triggered by Slack bot
+
+
+### Implementation
 
 0. **Build a Slack Bot User**
 
-     It will need a Slack space as well to deploy the bot. 
+     It will need a Slack workspace as well to deploy the bot. 
      So either an existing workspace or a new one is required.
-     In the [Slack API page](https://api.slack.com/apps), let's create a new app by clicking on the `Create New App` button.
-     Next, create a `Bot User` for it. Invite your bot to Slack Channels where you want to interact with it. 
+     In [Slack API page](https://api.slack.com/apps), let's create a new app by clicking on the `Create New App` button.
+     Next, create a `Bot User` for it. Invite your bot to Slack channels where you want to interact with it. 
 Follow the [link](https://api.slack.com/bot-users) for more details about bot users and how to build one.
 
     ![yourApps image](docs/image/yourapps.png)
 
      We also need to subscribe to [`app_mention` event](https://api.slack.com/events/app_mention). 
      This subscription allows your bot to response to users' requests  that mention its name. 
-     We will discuss more detail about event subscribtion later when we have already 
-     gone a bit deeper in the coding section.
 
-0. **Create a Project on GCP**
+0. **Create a project on GCP**
     
     A GCP account is all we need to create a Project on GCP. 
     Follow the instruction of setting up a GCP Project 
@@ -54,16 +44,17 @@ Follow the [link](https://api.slack.com/bot-users) for more details about bot us
      
      ![GCP image](docs/image/gcp.png)
 
-0. **Write a Go function**
+0. **Create a Go function**
     
     The final step is writing a Go function for your bot that will be deployed on to GCP.
      If you haven't worked with GCP before, 
      there is an example of `Hello, World` cloud function in the 
     [link](https://benjamincongdon.me/blog/2019/01/21/Getting-Started-with-Golang-Google-Cloud-Functions) 
-    given above, that may be really helpful for you to start with. 
+    given above, which can serve as an excellent starting point. 
     
     Our Go function is routed with each request made to the cloud function, and 
-    a response to an incoming request will be written to the `http.ResponseWriter`.    
+    a response to an incoming request will be written to the `http.ResponseWriter`. More details on this will be provided in a later 
+    section.
     
    To make our bot respond to the request when its name is mentioned, 
     we need to [subscribe to the `app_mention` event](https://api.slack.com/events-api). 
@@ -75,8 +66,8 @@ Follow the [link](https://api.slack.com/bot-users) for more details about bot us
     
     An Event Request URL must be confirmed before subscribing
     to any events and saving the form. Right after you type in a URL, Slack will automatically
-    send out an attribution that includes token, challenge, type fields as shown in figure below.
-    It is noted that this figure is taken from [Slack usages guide.](https://api.slack.com/events-api)
+    send out an attribution that includes token, challenge, and type fields as shown in figure below.
+    It is noted that this figure is taken from [Slack usages guide](https://api.slack.com/events-api). Yours will look different.
     
     ![appWeatherHandler image](docs/image/slackAttribution.png)
     
@@ -103,7 +94,7 @@ Follow the [link](https://api.slack.com/bot-users) for more details about bot us
     
     Deploy this function by following command
     
-    ```shell script
+    ```
     gcloud functions deploy AppWeatherMentionHandler --runtime go111 --trigger-http
     ```
     Answer `y` to the question about unauthenticated access.
@@ -123,15 +114,17 @@ Follow the [link](https://api.slack.com/bot-users) for more details about bot us
         
       **B. Slack Weather Bot**
         
-      Our Go function `AppWeatherMentionHandler` is programmed for doing several subsequent tasks as follows.
+      Our Go function `AppWeatherMentionHandler()` is a HTTP handler that does the following tasks
       
-      0.  Get the city's name `city` from the payload of JSON describing the event;
-      0.  Send `city` to `getWeather` function to get the `weather` message;
-      0.  Call `sendMessage` function with obtained variables to display the response in Slack Channels.
+      0.  Get the city name from the JSON payload describing the event and assign it to a variable `city`;
+      0.  Call a local function `getWeather()` to get `weather` message;
+          * get the weather from openweathermap
+          * format the return message
+      0.  Call `sendMessage()` function to display the response in Slack channels.
       
-      The `JSON` payload that is received by our server can be displayed as follow. 
+      In the first step, the `JSON` payload from Slack API will look like this. 
            
-      ```shell script
+      ```
            "token": "*****************************",
            "team_id": "**************",
            "api_app_id": "********",
@@ -144,74 +137,66 @@ Follow the [link](https://api.slack.com/bot-users) for more details about bot us
                ....
      ```
        
-     We're going to use Go map to extract the information that we're interested in. Apart from city's name that is used 
-     as an input for `getWeather` function, I'm also going to extract `token` and `channel` fields as those are required in
-     my `sendMessage` function. 
+     We're going to unmarshall this JSON into a map to extract the information of interest. Apart from the city name I also need the `token` and `channel` fields as they are required to send the message back to Slack later.
        
-     ```shell script
-         body, _ := ioutil.ReadAll(r.Body)
-         m := make(map[string]interface{})
-         err := json.Unmarshal(body, &m)
-         	if err != nil {
-         		_, _ = fmt.Fprintf(w, "error unmarshalling body: %v", err)
-         		return
-         	}      
-         m1 := m["event"].(map[string]interface{})
-         text := fmt.Sprintf("%v", m1["text"])
-         str := strings.Split(text, "<bot user ID>")
-         city := strings.Trim(str[1], " ")
+     ```
+        body, _ := ioutil.ReadAll(r.Body)
+        m := make(map[string]interface{})
+        err := json.Unmarshal(body, &m)
+        if err != nil {
+            _, _ = fmt.Fprintf(w, "error unmarshalling body: %v", err)
+            return
+        }      
+        m1 := m["event"].(map[string]interface{})
+        text := fmt.Sprintf("%v", m1["text"])
+        str := strings.Split(text, "<bot user ID>")
+        city := strings.Trim(str[1], " ")
+        channel := fmt.Sprintf("%v", m1["channel"])
+        token := "User's Slack Bot Token"
    ```
-    Send `city` variable to `getWeather` function as an input.
-    ```shell script
+    Call `getWeather()` with `city` variable as an input.
+    ```
         weather, err := getWeather(city)
    ``` 
-    There are many weather web pages provide API that we can choose from. I am using [openweathermap.org
-    API](https://openweathermap.org/api) to get all the free current weather information for my app. 
-    This web page requires an `appID`, and all you need to do to get one is signing up an account on this website.
-    You can check current weather API documentation [here](https://openweathermap.org/current). 
-    As shown in the documentation, to search for current weather of a city by
-    its name, and obtained values are displayed in cubic metric, the syntax for that URL 
-    should be as follows.
-    ```shell script
+    I am using [openweathermap.org API](https://openweathermap.org/api) to get weather information. 
+    This API requires an `appID`, and all you need to do to get one is signing up an account on its website.
+    You can check API documentation for current weather [here](https://openweathermap.org/current). 
+    To get current weather of a city by
+     name with returned values in cubic metric you need to call the following endpoint.
+    ```
          http://api.openweathermap.org/data/2.5/weather?q=<city_name>&units=metric&APPID=<appID>
     ```       
-    We now need to check for the returning body from `openweathermap.org`. 
-      When input data could not be found, such as the request name has typo or 
-      there is no data for that city, a returning message 
-      `{"cod":"404","message":"city not found"}` is obtained.
-      In that case, we would like our bot to display a message to Slack channel 
-       as `City <city_name> is not found`. 
-       Otherwise, weather information will be extracted from `body` and demonstrated to a string `s`, 
-       which will be passed as `weather` variable when we call function `sendMessage` in our 
-    `AppWeatherMentionHandler` function.
+    If the data for that city could not be found, `{"cod":"404","message":"city not found"}` is returned.
+      In this case, our bot will display `City <city_name> is not found` to the user. 
+       Otherwise, weather information will be extracted from the response and put into a formatted Slack message, 
+       which  will subsequently be sent back to Slack when calling `sendMessage()`.
       
-   ```shell script
+   ```
    err = sendMessage(token, channel, weather)
                if err != nil {
                    fmt.Fprintf(w, "error: %v", err)
                }
    ```
-    When GCP server send back the message to Slack, it's Slack's turn to display the message to the user.
+    
     As Slack supports [formatting text object,](https://api.slack.com/reference/surfaces/formatting#visual-styles) 
-   I have also modified the message that server has carried out to Slack. 
-   For example, some special symbols are passed on returning varialbe `s` on `getWeather` function, such as `*` (for **Bold**),
-  `_` (for _Italic_), and even an `emojimap` is created to add some [weather](https://openweathermap.org/weather-conditions)
+   the message can be prettied by using some special symbols such as `*` (for **Bold**),
+  `_` (for _Italic_). I even created an `emojimap` to add some [weather](https://openweathermap.org/weather-conditions)
   [emoji icons](https://www.webfx.com/tools/emoji-cheat-sheet/).
 
-    Our `AppWeatherMentionHandler` function now is ready to deploy to GCP.
+    Our `AppWeatherMentionHandler` function is now ready to deploy to GCP.
 
-   ```shell script
+   ```
    gcloud functions deploy AppWeatherMentionHandler --runtime go111 --trigger-http
    ```
 
-    Once Go function is successfully deployed, you can type in a request on your Slack channel. 
-    For instance, you would like to know how the weather at Melbourne, 
-    Australia is, so you type in your request (remember to mention your bot first).
+    Once it is successfully deployed, you can try the bot out on your Slack channel. 
+    For instance, if you want to know how the weather at Melbourne, 
+    Australia is, you mention your bot like follows.
 
    ```
    @weatherbot Melbourne, Au
    ```
-   And that is what will be displayed in your Slack channel
+   And this is what will be displayed in your Slack channel
 
    ![weatherBot image](docs/image/weatherbot.png)
 
@@ -219,8 +204,8 @@ Follow the [link](https://api.slack.com/bot-users) for more details about bot us
    
 ### Conclusion
    
-   Now you have a bot handy to check for weather. Follow [this link](https://github.com/Tracey7d4/stockbot) 
-   for Stockbot that giving you stock values of some companies that you're interested.
+   Well done! Now you have a working bot handy for checking weather. Follow [this link](https://github.com/Tracey7d4/stockbot) 
+   for another amazing bot that allows you to quote stock price.
    
 
 ### API reference
